@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ludo Game</title>
+</head>
+<body>
+  <h1>Ludo Game</h1>
+
+  <input type="text" id="playerName" placeholder="Enter Your Name" />
+  <button id="playGameBtn">Play Game</button>
+  <div id="gameMessages"></div>
+  <div id="diceResult"></div>
+  <div id="gameBoard"></div>
+  <button id="rollDiceBtn" disabled>Roll Dice</button>
+  <button id="movePieceBtn" disabled>Move Piece</button>
+  <div id="timer"></div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const socket = io();
+    const playGameBtn = document.getElementById("playGameBtn");
+    const playerNameInput = document.getElementById("playerName");
+    const rollDiceBtn = document.getElementById("rollDiceBtn");
+    const movePieceBtn = document.getElementById("movePieceBtn");
+    const diceResultElement = document.getElementById("diceResult");
+    const gameMessages = document.getElementById("gameMessages");
+    const timerElement = document.getElementById("timer");
+
+    let playerName;
+    let timer;
+
+    function displayGameMessage(message) {
+      gameMessages.innerText = message;
+    }
+
+    function startTimer(duration) {
+      let timeRemaining = duration;
+      timerElement.style.display = "block";
+      timer = setInterval(() => {
+        if (timeRemaining <= 0) {
+          clearInterval(timer);
+          timerElement.innerText = "Time's up!";
+          rollDiceBtn.disabled = true;
+          movePieceBtn.disabled = true;
+        } else {
+          timerElement.innerText = `Time remaining: ${timeRemaining} seconds`;
+          timeRemaining -= 1;
+        }
+      }, 1000);
+    }
+
+    function resetTimer() {
+      clearInterval(timer);
+      timerElement.style.display = "none";
+      timerElement.innerText = "";
+    }
+
+    playGameBtn.addEventListener("click", () => {
+      playerName = playerNameInput.value.trim();
+      if (playerName) {
+        socket.emit("playGame", playerName);
+      }
+    });
+
+    rollDiceBtn.addEventListener("click", () => {
+      socket.emit("diceRolled", playerName);
+    });
+
+    movePieceBtn.addEventListener("click", () => {
+      socket.emit("movePiece", playerName);
+      resetTimer();
+    });
+
+    socket.on("updateDice", ({ playerName, rolledValue }) => {
+      diceResultElement.innerText = `${playerName} rolled a ${rolledValue}`;
+    });
+
+    socket.on("updatePosition", ({ playerName, newPosition }) => {
+      displayGameMessage(`${playerName} moved to position ${newPosition}`);
+    });
+
+    socket.on("yourTurn", () => {
+      displayGameMessage("It's your turn!");
+      rollDiceBtn.disabled = false;
+      movePieceBtn.disabled = false;
+      resetTimer();
+      startTimer(30);
+    });
+
+    socket.on("playerMoved", ({ playerName, position }) => {
+      displayGameMessage(`${playerName} moved to position ${position}`);
+    });
+
+    socket.on("gameOver", (message) => {
+      displayGameMessage(message);
+      rollDiceBtn.disabled = true;
+      movePieceBtn.disabled = true;
+      resetTimer();
+    });
+
+    socket.on("gameStart", () => {
+      rollDiceBtn.disabled = false;
+      movePieceBtn.disabled = false;
+    });
+
+    socket.on("gameMessage", (message) => {
+      displayGameMessage(message);
+    });
+  </script>
+</body>
+</html>
