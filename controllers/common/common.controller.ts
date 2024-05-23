@@ -1,19 +1,8 @@
 import { Request, Response } from 'express';
 import bcrypt from 'bcrypt'
-const sgMail = require('@sendgrid/mail');
-// const { SECRET_KEY, MAP_SECRET_KEY } = require('../appconfig');
-sgMail.setApiKey('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')
+
 class CommonController {
-    sendEmail = async (to: any, subject: any, message: any) => {
-        const msg = {
-            to: to,
-            from: 'noreply@tric-pay.com',
-            subject: subject,
-            text: message,
-            html: message,
-        };
-        await sgMail.send(msg);
-    }
+  
    
     generateOtp(){
         return Math.floor(100000 + Math.random() * 900000);
