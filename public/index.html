@@ -52,6 +52,7 @@
 
     function startTimer(duration) {
       let timeRemaining = duration;
+      console.log(timeRemaining,"timeremain");
       timerElement.style.display = "block";
       timer = setInterval(() => {
         if (timeRemaining <= 0) {
@@ -108,7 +109,7 @@
       rollDiceBtn.disabled = false;
       movePieceBtn.disabled = false;
       resetTimer();
-      startTimer(60);
+      startTimer(20);
     });
 
     socket.on("playerMoved", ({ playerName, position }) => {

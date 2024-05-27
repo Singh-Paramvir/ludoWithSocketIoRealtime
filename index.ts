@@ -13,7 +13,7 @@ app.use(express.static(__dirname + '/public'));
 
 const rooms = new Map(); // To store active rooms
 const xy = 2; // Number of players per room
-const turnTimeLimit = 60 * 1000; // 60 seconds in milliseconds
+const turnTimeLimit = 20 * 1000; // 60 seconds in milliseconds
 
 // Track game state
 const gameState = new Map();
@@ -73,7 +73,7 @@ io.on('connection', (socket) => {
             setTimeout(() => {
                 console.log("in disconnect timeout", playerId);
                 if (!io.sockets.sockets.has(playerId)) {
-                    console.log(`User ${playerId} disconnected for more than 20 seconds.`);
+                    console.log(`User ${playerId} disconnected for more than 30 seconds.`);
                     const roomPlayers = rooms.get(roomName);
                     if (roomPlayers) {
                         const playerIndex = roomPlayers.findIndex(player => player.id === playerId);
@@ -98,7 +98,7 @@ io.on('connection', (socket) => {
                         }
                     }
                 }
-            }, 20000); // 20 seconds
+            }, 30000); // 30 seconds
             break;
         }
     }
@@ -117,10 +117,9 @@ io.on('connection', (socket) => {
         
         const roomName = name;
         console.log("yes room find", roomName);
-        
-        // Assign old socket ID
-        socket.id = player.id;
-        console.log(socket.id,"after assign old");
+
+        // Update the player object to use the new socket ID
+        player.id = socket.id;
         
         const gameStateRoom = gameState.get(roomName);
         socket.join(roomName);
@@ -194,6 +193,8 @@ io.on('connection', (socket) => {
     io.to(currentPlayer.id).emit('yourTurn');
     state.timers[currentPlayer.id] = setTimeout(() => {
       state.missedTurns[currentPlayer.id] += 1;
+      console.log(state.missedTurns[currentPlayer.id],"=-=-=-=-=",currentPlayer.id);
+      
       if (state.missedTurns[currentPlayer.id] >= 3) {
         io.to(currentPlayer.id).emit('gameOver', 'You missed your turn 3 times. You lose.');
         const opponent = state.players.find(player => player.id !== currentPlayer.id);
