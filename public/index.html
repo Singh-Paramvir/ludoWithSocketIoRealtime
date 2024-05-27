@@ -16,6 +16,17 @@
   <div id="gameBoard"></div>
   <button id="rollDiceBtn" disabled>Roll Dice</button>
   <button id="movePieceBtn" disabled>Move Piece</button>
+
+  <br>
+  <br>
+  <br>
+  <br>
+  <br>
+  <br>
+  <br>
+  <br>
+  <input type="text" id="playerName1" placeholder="Enter Your Name" />
+  <button id="reconnectBtn">Reconnect</button>
   <div id="timer"></div>
 
   <script src="/socket.io/socket.io.js"></script>
@@ -28,6 +39,9 @@
     const diceResultElement = document.getElementById("diceResult");
     const gameMessages = document.getElementById("gameMessages");
     const timerElement = document.getElementById("timer");
+
+    const reconnectBtn = document.getElementById("reconnectBtn");
+    const playerNameInput1 = document.getElementById("playerName1");
 
     let playerName;
     let timer;
@@ -58,6 +72,13 @@
       timerElement.innerText = "";
     }
 
+    reconnectBtn.addEventListener("click", () => {
+      playerName = playerNameInput1.value.trim();
+      if (playerName) {
+        socket.emit("reconnect", playerName);
+      }
+    });
+
     playGameBtn.addEventListener("click", () => {
       playerName = playerNameInput.value.trim();
       if (playerName) {
@@ -87,7 +108,7 @@
       rollDiceBtn.disabled = false;
       movePieceBtn.disabled = false;
       resetTimer();
-      startTimer(30);
+      startTimer(60);
     });
 
     socket.on("playerMoved", ({ playerName, position }) => {

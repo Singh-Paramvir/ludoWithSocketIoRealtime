@@ -13,7 +13,7 @@ app.use(express.static(__dirname + '/public'));
 
 const rooms = new Map(); // To store active rooms
 const xy = 2; // Number of players per room
-const turnTimeLimit = 30 * 1000; // 30 seconds in milliseconds
+const turnTimeLimit = 60 * 1000; // 60 seconds in milliseconds
 
 // Track game state
 const gameState = new Map();
@@ -48,8 +48,8 @@ io.on('connection', (socket) => {
     const player = { id: socket.id, name: playerName };
     rooms.get(roomName).push(player);
     gameState.get(roomName).players.push(player);
-    gameState.get(roomName).positions[player.id] = 0;
-    gameState.get(roomName).missedTurns[player.id] = 0;
+    gameState.get(roomName).positions[socket.id] = 0;
+    gameState.get(roomName).missedTurns[socket.id] = 0;
 
     socket.emit('message', `Welcome to Room ${roomName}, ${playerName}! Waiting for other players...`);
 
@@ -62,21 +62,81 @@ io.on('connection', (socket) => {
 
   socket.on('disconnect', () => {
     console.log(`User disconnected: ${socket.id}`);
-    for (const [roomName, players] of rooms) {
-      const index = players.findIndex(player => player.id === socket.id);
-      if (index !== -1) {
-        players.splice(index, 1);
-        rooms.delete(roomName);
-        gameState.delete(roomName);
-        console.log("Deleted room:", roomName);
-        break;
-      }
+    for (const [name, players] of rooms) {
+        const playerIndex = players.findIndex(player => player.id === socket.id);
+        if (playerIndex !== -1) {
+            const playerName = players[playerIndex].name;
+            const roomName = name;
+            const playerId = socket.id;
+            console.log(socket.id, "before timeout");
+
+            setTimeout(() => {
+                console.log("in disconnect timeout", playerId);
+                if (!io.sockets.sockets.has(playerId)) {
+                    console.log(`User ${playerId} disconnected for more than 20 seconds.`);
+                    const roomPlayers = rooms.get(roomName);
+                    if (roomPlayers) {
+                        const playerIndex = roomPlayers.findIndex(player => player.id === playerId);
+                        if (playerIndex !== -1) {
+                            roomPlayers.splice(playerIndex, 1);
+                            const gameStateRoom = gameState.get(roomName);
+                            delete gameStateRoom.positions[playerId];
+                            delete gameStateRoom.missedTurns[playerId];
+
+                            // Stop all timers
+                            clearTimeout(gameStateRoom.timers[playerId]);
+
+                            // Notify the opponent that they have won
+                            const opponent = roomPlayers.find(player => player.id !== playerId);
+                            if (opponent) {
+                                io.to(opponent.id).emit('gameOver', 'Your opponent disconnected. You win!');
+                            }
+
+                            // Clean up the room and game state
+                            rooms.delete(roomName);
+                            gameState.delete(roomName);
+                        }
+                    }
+                }
+            }, 20000); // 20 seconds
+            break;
+        }
     }
   });
 
   socket.on("diceRolled", (playerName) => {
     handlePlayerAction(socket, 'roll', playerName);
   });
+
+  socket.on("reconnect", (playerName) => {
+    console.log("reconnect call ", playerName);
+    for (const [name, players] of rooms) {
+      const player = players.find(player => player.name === playerName);
+      if (player) {
+        console.log(players, "players---------", player.id);
+        
+        const roomName = name;
+        console.log("yes room find", roomName);
+        
+        // Assign old socket ID
+        socket.id = player.id;
+        console.log(socket.id,"after assign old");
+        
+        const gameStateRoom = gameState.get(roomName);
+        socket.join(roomName);
+        socket.emit('message', `Welcome back to Room ${roomName}, ${playerName}!`);
+        socket.emit('updatePosition', { playerName, newPosition: gameStateRoom.positions[socket.id] });
+        console.log(players,"lastttt chaaa");
+        
+        if (gameStateRoom.currentPlayerIndex === gameStateRoom.players.findIndex(p => p.name === playerName)) {
+          io.to(socket.id).emit('yourTurn');
+          startPlayerTurn(roomName);
+        }
+        break;
+      }
+    }
+  });
+  
 
   socket.on("movePiece", (playerName) => {
     handlePlayerAction(socket, 'move', playerName);
@@ -87,11 +147,12 @@ io.on('connection', (socket) => {
     let roomName;
 
     for (const [name, players] of rooms) {
-      if (players.find(player => player.id === socket.id)) {
+      if (players.find(player => player.name === playerName)) {
         roomName = name;
         break;
       }
     }
+    // console.log(rooms, "roomssss");
 
     if (roomName) {
       const state = gameState.get(roomName);
@@ -125,7 +186,10 @@ io.on('connection', (socket) => {
 
   function startPlayerTurn(roomName) {
     const state = gameState.get(roomName);
+    if (!state) return; // Check if the game state exists before proceeding
+
     const currentPlayer = state.players[state.currentPlayerIndex];
+    console.log(currentPlayer, "currentPlayer //// ////");
 
     io.to(currentPlayer.id).emit('yourTurn');
     state.timers[currentPlayer.id] = setTimeout(() => {
@@ -137,6 +201,7 @@ io.on('connection', (socket) => {
         rooms.delete(roomName);
         gameState.delete(roomName);
       } else {
+        console.log("else cha apya", roomName);
         passTurnToNextPlayer(roomName);
       }
     }, turnTimeLimit);
@@ -144,7 +209,11 @@ io.on('connection', (socket) => {
 
   function passTurnToNextPlayer(roomName) {
     const state = gameState.get(roomName);
+    if (!state) return; // Check if the game state exists before proceeding
+
     state.currentPlayerIndex = (state.currentPlayerIndex + 1) % state.players.length;
+    console.log(roomName, "passTurnTo");
+
     startPlayerTurn(roomName);
   }
 });
